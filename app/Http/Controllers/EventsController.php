@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Event;
+use App\Models\Workshop;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Foundation\Bus\DispatchesJobs;
 use Illuminate\Foundation\Validation\ValidatesRequests;
 use Illuminate\Routing\Controller as BaseController;
 use Illuminate\Support\Facades\Date;
+use Carbon\Carbon;
 
 class EventsController extends BaseController
 {
@@ -181,7 +183,31 @@ class EventsController extends BaseController
      */
 
     public function getFutureEventsWithWorkshops()
-    {
-        throw new \Exception('implement in coding task 2');
+    {    $now = Carbon::now();
+
+        $events = Event::select('events.id', 'events.name', 'events.created_at', 'events.updated_at')
+            ->join('workshops', 'events.id', '=', 'workshops.event_id')
+            ->selectRaw('MIN(workshops.start) as start')
+            ->groupBy('events.id')
+            ->havingRaw('start > ?', [$now])
+            ->get();
+    
+        $eventIds = $events->pluck('id');
+    
+        $workshops = Workshop::whereIn('event_id', $eventIds)
+            ->orderBy('start')
+            ->get();
+    
+        $workshopsByEvent = $workshops->groupBy('event_id');
+    
+        $results = [];
+    
+        foreach ($events as $event) {
+            $eventData = $event->toArray();
+            $eventData['workshops'] = $workshopsByEvent[$event->id]->toArray();
+            $results[] = $eventData;
+        }
+    
+        return $results;
     }
 }
